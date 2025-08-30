@@ -15,7 +15,7 @@ public class RegisterRequestValidator:AbstractValidator<RegisterRequest>
 
         //Password
         RuleFor(temp => temp.Password)
-          .NotEmpty().WithMessage("Password is required");
+          .NotEmpty().WithMessage("Password cannot b Empty");
 
         // Validate the PersonName property.
         RuleFor(request => request.PersonName)
