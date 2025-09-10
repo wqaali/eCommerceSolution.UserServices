@@ -7,6 +7,14 @@ namespace eCommerce.Core.ServiceContracts;
 public interface IUsersService
 {
     /// <summary>
+    /// Method to fetch user by Id
+    /// </summary>
+    /// <param name="loginRequest"></param>
+    /// <returns></returns>
+
+    Task<UserDTO> GetUserByUserID(Guid userID);
+
+    /// <summary>
     /// Method to handle user login use case and returns an AuthenticationResponse object that contains status of login
     /// </summary>
     /// <param name="loginRequest"></param>

@@ -15,24 +15,29 @@ namespace eCommerce.API.Controllers
 
         public AuthController(IUsersService userService)
         {
-                _usersService = userService;
+            _usersService = userService;
         }
-       [HttpPost("register")]
-       public async Task<IActionResult> Register(Core.DTO.RegisterRequest registerRequest)
+        [HttpGet("test")]
+        public IActionResult Test()
+        {
+            return Ok("Hello Test");
+        }
+        [HttpPost("register")]
+        public async Task<IActionResult> Register(Core.DTO.RegisterRequest registerRequest)
         {
             if (registerRequest == null)
             {
                 return BadRequest("Invalid registration Data");
             }
-           AuthenticationResponse response= await _usersService.Register(registerRequest);
+            AuthenticationResponse response = await _usersService.Register(registerRequest);
             if (response == null || !response.Success)
             {
                 return BadRequest(response);
             }
-            return Ok(response);    
+            return Ok(response);
         }
         [HttpPost("login")]
-        public async Task<IActionResult>Login(Core.DTO.LoginRequest loginRequest)
+        public async Task<IActionResult> Login(Core.DTO.LoginRequest loginRequest)
         {
             //Check for invalid LoginRequest
             if (loginRequest == null)
