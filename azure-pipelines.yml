@@ -1,35 +1,115 @@
 trigger:
-- dev
+  - dev
 
 resources:
-- repo: self
+  - repo: self
 
 variables:
   # Container registry service connection established during pipeline creation
-  dockerRegistryServiceConnection: '134635b4-1444-43d2-b06c-973bde08074f'
-  imageRepository: 'wqaaliecommercesolutionuserservices'
-  containerRegistry: 'waaecommerceregistry.azurecr.io'
-  dockerfilePath: '$(Build.SourcesDirectory)/eCommerce.API/Dockerfile'
-  tag: '$(Build.BuildId)'
-
-  # Agent VM image name
-  vmImageName: 'ubuntu-latest'
+  - name: dockerRegistryServiceConnection
+    value: "134635b4-1444-43d2-b06c-973bde08074f"
+  - name: imageRepository
+    value: "products-microservice"
+  - name: containerRegistry
+    value: "waaecommerceregistry.azurecr.io"
+  - name: dockerfilePath
+    value: "$(Build.SourcesDirectory)/eCommerce.API/Dockerfile"
+  - name: tag
+    value: "$(Build.BuildId)"
+  - name: dockerRegistryServiceConnection
+    value: "134635b4-1444-43d2-b06c-973bde08074f"
+  - name: vmImageName
+    value: "ubuntu-latest"
+  - name: aksClusterName
+    value: "ecommerce-aks-cluster"
+  - name: aksServiceConnectionName
+    value: "dev-ecommerce-aks-cluster-dev-1760006590786"
+  - name: deploymentFile
+    value: "$(Build.SourcesDirectory)/k8s/deployment.yml"
+  - name: kubernetesNamespace
+    value: "dev"
 
 stages:
-- stage: Build
-  displayName: Build and push stage
-  jobs:
-  - job: Build
-    displayName: Build
-    pool:
-      vmImage: $(vmImageName)
-    steps:
-    - task: Docker@2
-      displayName: Build and push an image to container registry
-      inputs:
-        command: buildAndPush
-        repository: $(imageRepository)
-        dockerfile: $(dockerfilePath)
-        containerRegistry: $(dockerRegistryServiceConnection)
-        tags: |
-          $(tag)
+  - stage: Build
+    displayName: Build and push stage
+    jobs:
+      - job: Build
+        displayName: Build
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - task: Docker@2
+            displayName: Build and push an image to container registry
+            inputs:
+              command: buildAndPush
+              repository: $(imageRepository)
+              dockerfile: $(dockerfilePath)
+              containerRegistry: $(dockerRegistryServiceConnection)
+              tags: |
+                $(tag)
+  - stage: Test
+    displayName: Test and publish results stage
+    jobs:
+      - job: RunTest
+        displayName: Run the Unit tests
+        pool:
+          vmImage: $(windowlatestimage)
+        steps:
+          - checkout: self
+            displayName: Checkout source Code
+          - task: NuGetToolInstaller@1
+            displayName: Install NuGetTool
+          - task: NuGetCommand@2
+            displayName: Restore Nuget Packages
+            inputs:
+              command: "restore"
+              restoreSolution: "**/*.sln"
+          - task: MSBuild@1
+            displayName: Build Solution
+            inputs:
+              solution: "**/*.sln"
+              platform: "Any CPU"
+              configuration: "Debug"
+          - task: VSTest@3
+            displayName: Test Solution
+            inputs:
+              testSelector: "testAssemblies"
+              testAssemblyVer2: |
+                **\UsersUnitTests.dll
+                !**\*TestAdapter.dll
+                !**\obj\**
+              searchFolder: "$(System.DefaultWorkingDirectory)"
+              runTestsInIsolation: true
+              codeCoverageEnabled: true
+  - stage: DeployToDev
+    displayName: Deploy to Dev
+    dependsOn: Test
+    condition: and(succeeded('Build'), eq(variables['Build.SourceBranch'], 'refs/heads/dev'))
+    jobs:
+      - deployment: DeploymentToDev
+        displayName: Deployment to Dev Environment
+        environment: dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  displayName: Checkout source code
+
+                - script: |
+                    echo "Listing contents of k8s"
+                    ls -l $(Build.SourcesDirectory)/k8s/
+                  displayName: "List Files in k8s Directory"
+
+                - script: |
+                    sed -i 's/__TAG__/$(tag)/g' $(deploymentFile)
+                  displayName: "Replace image tag in deployment file"
+
+                - task: Kubernetes@1
+                  displayName: Deploy to dev namespace in kubernetes
+                  inputs:
+                    kubernetesServiceEndpoint: $(aksServiceConnectionName)
+                    kubernetesCluster: $(aksClusterName)
+                    namespace: $(kubernetesNamespace)
+                    command: apply
+                    arguments: "-f $(Build.SourcesDirectory)/k8s/."
